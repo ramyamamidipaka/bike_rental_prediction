@@ -1,0 +1,29 @@
+feature_engineering:
+  rename_columns:
+    season: season
+    hr: hour
+    weekday: week_day
+    weathersit: weather
+    temp: temperature
+    hum: humidity
+    windspeed: wind_speed
+    cnt: bike_count
+  
+  lag_params:
+    bike_count: [1, 2, 22, 23]
+    hour: [1, 2, 3]
+    temperature: [1, 2, 3]
+    humidity: [1, 2, 3]
+
+training:
+  target_params:
+    shift_period: 1
+    target_column: bike_count
+    new_target_name: target
+
+  train_fraction: 0.8
+  n_trials: 5
+
+model_storage:
+  path: data/06_models
+  name: forecast_model
