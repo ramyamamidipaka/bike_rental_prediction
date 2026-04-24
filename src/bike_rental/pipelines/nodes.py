@@ -5,9 +5,8 @@ from pathlib import Path
 import numpy as np
 from catboost import CatBoostRegressor
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_squared_error
-from typing import Dict, Any, Tuple, Union
 from sklearn.metrics import mean_absolute_error, mean_squared_error
+from typing import Dict, Any, Tuple, Union
 
 
 optuna.logging.set_verbosity(optuna.logging.WARNING)
@@ -26,6 +25,13 @@ def rename_columns(df: pd.DataFrame, renaming_dict: Dict[str, str]) -> pd.DataFr
 
     """
     return df.rename(columns=renaming_dict)
+def get_new_columns(df: pd.DataFrame) -> pd.DataFrame:
+    dt = pd.to_datetime(df['datetime'])
+    df['day_of_month'] = dt.dt.day
+    df['month'] = dt.dt.month
+    return df
+
+
 def get_features(df: pd.DataFrame, lag_params: Dict[str, Any]) -> Tuple[pd.DataFrame, pd.Timestamp]:
     """Create lag features for time-series data.
 
@@ -158,7 +164,8 @@ def predict(
     x: pd.DataFrame,
 ) -> pd.DataFrame:
     """Predict using a trained model."""
-    y_pred = pd.DataFrame(model.predict(x), columns=["prediction"])
+    y_pred = pd.DataFrame(model.predict(x).clip(min=0), columns=["prediction"])
+    print(y_pred.head())
     return y_pred
 
 
@@ -216,3 +223,35 @@ def save_model(
         joblib_path.unlink(missing_ok=True)  # Deletes file if it already exists
         joblib.dump(model, joblib_path)
     return None
+
+def load_model(
+    model_type: str,
+    model_storage: Dict[str, Any],):
+    model_dir = Path(model_storage["path"])
+    model_name = model_storage["name"]
+    model_type = model_type.lower().strip()
+
+    if model_type in ["catboost", "cb"]:
+        # CatBoost has native deserialization
+        model = CatBoostRegressor()
+        model.load_model(str(model_dir / f"{model_name}.cbm"))
+    else:
+        # Use joblib for sklearn models
+        model = joblib.load(model_dir / f"{model_name}.pkl")
+
+    return model
+
+
+def load_data(df:pd.DataFrame) -> Tuple[pd.DataFrame, pd.Timestamp]:
+    """Load the last timestamp from the inference data."""
+    last_timestamp = pd.to_datetime(df['datetime']).iloc[-1]
+    return df,last_timestamp
+
+
+def join_timestamps(
+    predictions: pd.DataFrame,
+    timestamps: pd.Timestamp,
+) -> pd.DataFrame:
+    """Join timestamp to predictions."""
+    predictions['datetime'] = timestamps
+    return predictions

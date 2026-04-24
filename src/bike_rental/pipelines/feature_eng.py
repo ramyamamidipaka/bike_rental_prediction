@@ -1,18 +1,57 @@
 from kedro.pipeline import Pipeline, node
 from typing import Dict,Any
 import pandas as pd
-from .nodes import rename_columns,get_features
+from .nodes import *
 
 def create_feature_eng_pipeline() -> Pipeline:
     return Pipeline(
         [node(
             func=rename_columns,
-            inputs=["train_data", "params:feature_engineering.rename_columns"],
+            inputs=["input_data", "params:feature_engineering.rename_columns"],
             outputs="raw_data_renamed"
         ),
         node(
+            func=get_new_columns,
+            inputs="raw_data_renamed",
+            outputs="raw_data_with_dates",
+        ),
+        node(
             func=get_features,
-            inputs=["raw_data_renamed", "params:feature_engineering.lag_params"],
+            inputs=["raw_data_with_dates", "params:feature_engineering.lag_params"],
             outputs=["features", "timestamps"],
         )]
     )
+
+def load_training_data() -> Pipeline:
+    """Load training data pipeline."""
+    return Pipeline(
+        [
+            node(
+                func=load_data,
+                inputs="train_data",
+                outputs=["input_data", "last_timestamp"],
+            ),
+        ]
+    )
+
+def load_inference_data() -> Pipeline:
+    """Load inference batch pipeline with timestamp extraction."""
+    return Pipeline(
+        [
+            node(
+                func=load_data,
+                inputs="inference_batch",
+                outputs=["input_data", "last_timestamp"],
+            ),
+        ]
+    )
+
+
+def feat_eng_pipeline_training(**kwargs) -> Pipeline:
+    """Feature engineering pipeline for training."""
+    return load_training_data() + create_feature_eng_pipeline()
+
+
+def feat_eng_pipeline_inference(**kwargs) -> Pipeline:
+    """Feature engineering pipeline for inference."""
+    return load_inference_data() + create_feature_eng_pipeline()
